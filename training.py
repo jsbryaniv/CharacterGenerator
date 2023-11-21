@@ -23,6 +23,12 @@ num_batches = 100
 num_epochs = 1000
 num_steps = 5  # Number of times to add noise to the input image
 
+# Set variables
+blur_width = .02*max(image_size)  # Standard deviation of the Gaussian blur kernel
+blur_levels = [blur_width * 2**i for i in range(3)]
+noise_levels = [2**(i+1-num_steps) for i in range(num_steps)]
+noise_levels = noise_levels + [2] + noise_levels[::-1]
+
 # Image viewer
 def view(image, id=0):
     plt.imshow(image.detach().cpu().numpy()[id, 0, :, :], cmap='gray')
@@ -116,18 +122,23 @@ for epoch in range(num_epochs):
         # Initialize loss
         loss = 0
 
-        # Initialize image
+        # Train single image distortion
+        for sigma in noise_levels:
+            for blur_scale in blur_levels:
+                image = target_image
+                image = GaussianBlur(kernel_size=9, sigma=blur_scale)(image)
+                image = image + torch.randn_like(image, device=device) * sigma
+                image = generator(image)
+                loss += F.mse_loss(image, target_image)
+
+        # Train running image distortion
         image = target_image.clone()
         input_images = []
         output_images = []
-
-        # Loop over noise levels
-        noise_levels = [2**(i+1-num_steps) for i in range(num_steps)]
-        noise_levels = noise_levels + [2] + noise_levels[::-1]
         for sigma in noise_levels:
             
             # Add noise
-            image = GaussianBlur(kernel_size=9, sigma=.02*max(image_size))(image)
+            image = GaussianBlur(kernel_size=9, sigma=blur_width)(image)
             image = image + torch.randn_like(image, device=device) * sigma
             input_images.append(image.clone())
 
@@ -151,8 +162,8 @@ for epoch in range(num_epochs):
     generator.eval()
     image = torch.randn((1, 1, *image_size), device=device)
     for i in range(100):
-        image = generator.dream(image, kT=1, sigma=1.0, num_steps=10)
         image = generator.dream(image, kT=1, sigma=0.1, num_steps=10)
+        image = generator.dream(image, kT=2, sigma=0.0, num_steps=10)
         plt.clf()
         view(image)
     
