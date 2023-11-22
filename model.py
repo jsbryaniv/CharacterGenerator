@@ -8,7 +8,7 @@ from torchvision import transforms
 class Generator(nn.Module):
     """Generator network."""
 
-    def __init__(self, img_shape=(64, 64), num_channels=1, conv_features=8, num_layers=3, latent_features=128):
+    def __init__(self, img_shape=(64, 64), num_channels=1, conv_features=2, num_layers=3, latent_features=32):
         super().__init__()
 
         # Set the parameters
@@ -46,16 +46,16 @@ class Generator(nn.Module):
         self.encoder.append(nn.Sequential(
             nn.Flatten(),
             nn.Linear(pre_latent_features_total, latent_features),
-            nn.ReLU(),
             nn.BatchNorm1d(latent_features),
+            nn.ReLU(),
         ))
 
         # Decoder block
         self.decoder = nn.ModuleList()
         self.decoder.append(nn.Sequential(
             nn.Linear(latent_features, pre_latent_features_total),
-            nn.ReLU(),
             nn.BatchNorm1d(pre_latent_features_total),
+            nn.ReLU(),
             nn.Unflatten(-1, (pre_latent_features, *pre_latent_shape)),
         ))
         for i in range(num_layers):

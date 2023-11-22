@@ -25,7 +25,7 @@ num_steps = 5  # Number of times to add noise to the input image
 
 # Set variables
 # noise_levels = [2**(i+2-num_steps) for i in range(num_steps)]
-noise_levels = np.linspace(.1, 2, num_steps)
+noise_levels = np.linspace(.01, 1.5, num_steps)
 
 # Image viewer
 def view(image, id=0):
@@ -122,7 +122,7 @@ for epoch in range(num_epochs):
 
         # Initialize loss with regulator
         loss = (
-            sum((p-.01).pow(2.0).sum() for p in generator.parameters())
+            sum(p.pow(2.0).sum() for p in generator.parameters())
             / sum(p.numel() for p in generator.parameters())
         )
 
