@@ -12,7 +12,7 @@ from torchvision.transforms import ToTensor, RandomAffine, GaussianBlur
 class ChineseCharacters(Dataset):
     """Chinese character dataset."""
     
-    def __init__(self, image_size=(64, 64)):
+    def __init__(self, image_size=(64, 64), transform=True):
         super().__init__()
 
         # Generate a list of all the Chinese characters
@@ -22,6 +22,7 @@ class ChineseCharacters(Dataset):
         
         # Set the parameters
         self.image_size = image_size
+        self.transform = transform
         self.characters = characters
         self.num_characters = len(characters)
         self.font_path = "fonts/NotoSansSC-Regular.otf"
@@ -29,7 +30,7 @@ class ChineseCharacters(Dataset):
     def __len__(self):
         return self.num_characters
 
-    def __getitem__(self, idx, transform=True):
+    def __getitem__(self, idx):
         
         # Get the character
         character = self.characters[idx]
@@ -38,7 +39,7 @@ class ChineseCharacters(Dataset):
         image = self.print_character(character)
 
         # Distort the image
-        if transform:
+        if self.transform:
             image = RandomAffine(
                 degrees=10,
                 translate=(0.1, 0.1),

@@ -24,10 +24,8 @@ num_epochs = 1000
 num_steps = 5  # Number of times to add noise to the input image
 
 # Set variables
-blur_width = .02*max(image_size)  # Standard deviation of the Gaussian blur kernel
-blur_levels = [blur_width * 2**i for i in range(3)]
-noise_levels = [2**(i+1-num_steps) for i in range(num_steps)]
-noise_levels = noise_levels + [2] + noise_levels[::-1]
+# noise_levels = [2**(i+2-num_steps) for i in range(num_steps)]
+noise_levels = np.linspace(.1, 2, num_steps)
 
 # Image viewer
 def view(image, id=0):
@@ -91,7 +89,7 @@ try:
 except:
     # Initialize parameters to small random values
     for param in generator.parameters():
-        param.data = torch.randn(param.shape) * .1
+        param.data = torch.randn(param.shape) * .01
     print(f"Model not found. Training from scratch.")
 generator.to(device)
 
@@ -112,33 +110,40 @@ for epoch in range(num_epochs):
         batch_idx += 1
         t = time.time()
 
-        # Get batch
+        # Get images
         target_image = next(iter(dataloader)).to(device)
+        image = target_image.clone()
+        input_images = []
+        output_images = []
 
         # Set up model
         generator.train()
         generator.zero_grad()
 
-        # Initialize loss
-        loss = 0
+        # Initialize loss with regulator
+        loss = (
+            sum((p-.01).pow(2.0).sum() for p in generator.parameters())
+            / sum(p.numel() for p in generator.parameters())
+        )
 
-        # Train single image distortion
-        for sigma in noise_levels:
-            for blur_scale in blur_levels:
-                image = target_image
-                image = GaussianBlur(kernel_size=9, sigma=blur_scale)(image)
-                image = image + torch.randn_like(image, device=device) * sigma
-                image = generator(image)
-                loss += F.mse_loss(image, target_image)
-
-        # Train running image distortion
-        image = target_image.clone()
-        input_images = []
-        output_images = []
-        for sigma in noise_levels:
+        # Train pure autoencoder
+        for i, sigma in enumerate(noise_levels):
             
             # Add noise
-            image = GaussianBlur(kernel_size=9, sigma=blur_width)(image)
+            image = target_image.clone() + torch.randn_like(image, device=device) * sigma
+
+            # Forward pass
+            image = generator(image)
+
+            # Calculate loss
+            loss += F.mse_loss(image, target_image)
+
+        # Train pyramid model
+        image = target_image.clone()
+        for i, sigma in enumerate(noise_levels):
+            last_loop = i == len(noise_levels) - 1
+            
+            # Add noise
             image = image + torch.randn_like(image, device=device) * sigma
             input_images.append(image.clone())
 
@@ -148,6 +153,23 @@ for epoch in range(num_epochs):
 
             # Calculate loss
             loss += F.mse_loss(image, target_image)
+
+            # Loop down the pyramid
+            image2 = image.clone()
+            for j, sigma2 in enumerate(noise_levels[:i][::-1]):
+
+                # Add noise
+                image2 = image + torch.randn_like(image2, device=device) * sigma2
+                if last_loop:
+                    input_images.append(image2.clone())
+
+                # Forward pass
+                image2 = generator(image2)
+                if last_loop:
+                    output_images.append(image2.clone())
+
+                # Calculate loss
+                loss += F.mse_loss(image2, target_image)
 
         # Backpropagate
         loss.backward()
@@ -160,12 +182,10 @@ for epoch in range(num_epochs):
 
     # Dream
     generator.eval()
-    image = torch.randn((1, 1, *image_size), device=device)
-    for i in range(100):
-        image = generator.dream(image, kT=1, sigma=0.1, num_steps=10)
-        image = generator.dream(image, kT=2, sigma=0.0, num_steps=10)
-        plt.clf()
-        view(image)
+    image = torch.zeros((1, 1, *image_size), device=device)
+    image = generator.dream(image, kT=0, sigma=1.0, num_steps=100)
+    plt.clf()
+    view(image)
     
     # Save model
     with open(generator_path, 'wb') as f:
