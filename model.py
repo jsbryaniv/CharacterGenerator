@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 from torchvision import transforms
 
+
 # Define the network
 class Generator(nn.Module):
     """Generator network."""
@@ -21,6 +22,7 @@ class Generator(nn.Module):
         
         # Set temperature schedule
         self.kT_schedule = list(torch.linspace(0, max_kT, num_steps))
+
 
         # Input block
         self.input = nn.Sequential(
@@ -79,6 +81,10 @@ class Generator(nn.Module):
         # Initialze skips
         skips = []
 
+        # Normalize the input
+        x = x - x.mean(dim=(2, 3), keepdim=True)
+        x = x / x.std(dim=(2, 3), keepdim=True)
+
         # Input
         x = self.input(x)
 
@@ -97,30 +103,39 @@ class Generator(nn.Module):
 
         return x
     
-    def dream(self, x, kT_schedule=None):
+    @torch.no_grad()
+    def dream(self, num_cycles=10, kT_schedule=None):
         """Dream."""
         
         # Set the temperature schedule
         if kT_schedule is None:
             kT_schedule = self.kT_schedule
 
-        # Increase temperature
-        for kT in kT_schedule:
-            x = x + torch.randn_like(x, device=x.device) * kT
-            x = self(x)
+        # Initialize image
+        device = next(self.parameters()).device
+        img_shape = self.img_shape
+        x = torch.randn((1, 1, *img_shape), device=device)
 
-        # Decrease temperature
-        for kT in kT_schedule[-1::-1]:
-            x = x + torch.randn_like(x, device=x.device) * kT
-            x = self(x)
+        # Loop over cycles
+        for _ in range(num_cycles):
+
+            # Increase temperature
+            for kT in kT_schedule:
+                x = x + torch.randn_like(x, device=x.device) * kT
+                x = self(x)
+
+            # Decrease temperature
+            for kT in kT_schedule[-1::-1]:
+                x = x + torch.randn_like(x, device=x.device) * kT
+                x = self(x)
 
         # Return the result
         return x
 
 
-    
-
+# Test the model
 if __name__ == '__main__':
+
     # Create a generator
     generator = Generator()
 
@@ -131,7 +146,7 @@ if __name__ == '__main__':
     out = generator(x)
 
     # Dream a new image
-    out = generator.dream(x)
+    out = generator.dream()
 
     # Done!
     print("Done!")

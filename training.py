@@ -56,10 +56,23 @@ optimizer = torch.optim.Adam(generator.parameters(), lr=lr)
 
 # Image viewer
 def view(image, id=0):
-    plt.imshow(image.detach().cpu().numpy()[id, 0, :, :], cmap='gray')
-    plt.pause(.1)
+    
+    # Set up figure
+    fig = plt.gcf()
+    plt.ion()
+    plt.clf()
     plt.show()
-    return
+    ax = fig.add_subplot(1, 1, 1)
+
+    # Plot image
+    ax.imshow(image.detach().cpu().numpy()[id, 0, :, :], cmap='gray')
+
+    # Finalize figure
+    plt.tight_layout()
+    plt.pause(.1)
+    
+    # Return
+    return fig, ax
 
 # Results viewer
 def view_results(inputs, outputs, id=0):
@@ -171,11 +184,7 @@ for epoch in range(num_epochs):
 
     # Dream
     generator.eval()
-    image = generator.max_kT * torch.randn((1, 1, *image_size), device=device)
-    image = next(iter(dataloader)).to(device)[[0]]
-    for _ in range(10):
-        image = generator.dream(image)
-    plt.clf()
+    image = generator.dream()
     view(image)
     
     # Save model

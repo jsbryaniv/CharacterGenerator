@@ -116,4 +116,6 @@ if __name__ == "__main__":
         plt.imshow(image[0, :, :].detach().numpy(), cmap='gray')
         plt.pause(.1)
 
+    # Done
     print("Done.")
+    
